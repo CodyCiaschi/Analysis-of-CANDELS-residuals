@@ -7,32 +7,41 @@ Created on Tue Feb  7 05:15:30 2017
 
 import tkinter
 from PIL import Image, ImageTk
+import os
+import glob
 
-def good_image(good):
+image_list = []
+
+for filename in glob.glob('*.png'):
+    image_list.append(filename)
+
+def good_image(good,window):
     good.save("goodtest.png")
+    window.destroy()
 
-def bad_image(bad):
+def bad_image(bad,window):
     bad.save("badtest.png")  
+    window.destroy()
 
 def rate_images(testimage):
     top = tkinter.Tk()
     image = Image.open(testimage)
     photo = ImageTk.PhotoImage(image)
-
     label = tkinter.Label(image=photo)
-    label.image = photo # keep a reference!
+    label.testimage = photo # keep a reference!
     label.pack()
     
-    Button1 = tkinter.Button(top, text="Good",command = lambda : good_image(image) & top.destroy())
+    Button1 = tkinter.Button(top, text="Good",command =  lambda : good_image(image,top))
 
-    Button2 = tkinter.Button(top, text="Bad", command = lambda : bad_image(image) & top.destroy())
+    Button2 = tkinter.Button(top, text="Bad", command = lambda : bad_image(image,top))
    
     label.pack()
     Button1.pack()
     Button2.pack()
     top.mainloop()
 
-x = ["cms_plot.png","cdms_plot.png"]
 
-for i in x:
+print(image_list)
+
+for i in image_list:
     rate_images(i)
