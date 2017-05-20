@@ -1,4 +1,0 @@
-set current_path = $(pwd)
-set file_name ="GUI_calibration_visual_inspec.py"
-set GUI_path = "/Users/km4n6/Box Sync/bharath/Second Project/codes_v3.0_imp_codes/calibration_taining_visual_classification"
-cp $GUI_path/$filename $current_path/$filename
