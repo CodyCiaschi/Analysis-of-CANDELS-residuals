@@ -62,3 +62,4 @@ while(i < len(image_list)):
     rate_images(i, galwrite, image_list[i])
     i+=1
 
+#make sure this is working
