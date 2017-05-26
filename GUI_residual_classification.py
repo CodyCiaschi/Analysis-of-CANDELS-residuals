@@ -20,7 +20,7 @@ def emulate_image(file_path, gal_id):
             self.bad_residual_button = Checkbutton(frame, text="Bad\n Residual",wraplength=55, command=self.bad_residual)
             self.bad_residual_button.pack(side=LEFT,expand = 1, padx = 10, pady = 10)
 
-            self.interacting_button = Checkbutton(frame, text="\n Interacting",wraplength=65, command=self.interacting)
+            self.interacting_button = Checkbutton(frame, text="\n Interacting",wraplength=75, command=self.interacting)
             self.interacting_button.pack(side=LEFT,expand = 1, padx = 10, pady = 10)
 
             self.possibly_interacting_button = Checkbutton(frame, text="Possibly\n Interacting",wraplength=75, command=self.possibly_interacting)
