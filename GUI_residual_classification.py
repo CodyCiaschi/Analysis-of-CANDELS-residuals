@@ -23,7 +23,7 @@ def emulate_image(filepath, gal_id):
             model = list(fits.getdata(filepath, 2))
             residual = list(fits.getdata(filepath, 3))
 
-            fig = Figure(figsize=(5,5), dpi=100)
+            fig = Figure(figsize=(10,10), dpi=100)
             original_plot = fig.add_subplot(131)
             original_plot.imshow(original)
 
@@ -33,36 +33,42 @@ def emulate_image(filepath, gal_id):
             residual_plot = fig.add_subplot(133)
             residual_plot.imshow(residual)
 
+            fig.tight_layout()
+
             frame = Frame(master)
-            frame.pack()
+            frame.pack(side = TOP)
+
+            frame2 = Frame(master)
+            frame2.pack(side = BOTTOM)
+
             self.decision = defaultdict(list)
 
-            self.good_residual_button = Checkbutton(frame, text = "Good\n Residual", wraplength = 75, command = self.good_residual)
-            self.good_residual_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.good_residual_button = Checkbutton(frame, text = "Good\n Residual", wraplength = 90, command = self.good_residual)
+            self.good_residual_button.pack(side=LEFT)
 
-            self.bad_residual_artifact_button = Checkbutton(frame, text = "Bad\n Residual\n Artifact", wraplength = 55, command = self.bad_residual_artifact)
-            self.bad_residual_artifact_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.bad_residual_artifact_button = Checkbutton(frame, text = "Bad\n Residual\n Artifact", wraplength = 90, command = self.bad_residual_artifact)
+            self.bad_residual_artifact_button.pack(side = LEFT)
 
-            self.bad_residual_natural_button = Checkbutton(frame, text = "Bad\n Residual\n Natural", wraplength = 75, command = self.bad_residual_natural)
-            self.bad_residual_natural_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.bad_residual_natural_button = Checkbutton(frame, text = "Bad\n Residual\n Natural", wraplength = 90, command = self.bad_residual_natural)
+            self.bad_residual_natural_button.pack(side = LEFT)
 
-            self.reasonable_contains_clumps_button = Checkbutton(frame, text = "Reasonable\n Contains\n Clumps",wraplength=75, command=self.reasonable_contains_clumps)
-            self.reasonable_contains_clumps_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.reasonable_contains_clumps_button = Checkbutton(frame, text = "Reasonable\n Contains\n Clumps",wraplength=90, command=self.reasonable_contains_clumps)
+            self.reasonable_contains_clumps_button.pack(side = LEFT)
 
             self.reasonable_contains_substructure_button = Checkbutton(frame, text = "Reasonable\n Contains\n Substructure", wraplength = 90, command = self.reasonable_contains_substructure)
-            self.reasonable_contains_substructure_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.reasonable_contains_substructure_button.pack(side = LEFT)
 
-            self.tidal_features_present_button = Checkbutton(frame, text = "Tidal\n Features Present", wraplength = 75, command = self.tidal_feature_pres)
-            self.tidal_features_present_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.tidal_features_present_button = Checkbutton(frame, text = "Tidal\n Features Present", wraplength = 90, command = self.tidal_feature_pres)
+            self.tidal_features_present_button.pack(side = LEFT)
 
-            self.tidal_features_not_present_button = Checkbutton(frame, text = "Tidal Features\n Not Present", wraplength = 75, command = self.tidal_feature_not_pres)
-            self.tidal_features_not_present_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.tidal_features_not_present_button = Checkbutton(frame, text = "Tidal Features\n Not Present", wraplength = 90, command = self.tidal_feature_not_pres)
+            self.tidal_features_not_present_button.pack(side = LEFT)
 
             self.Done_button = Button(frame, text = "Done !",wraplength = 55, command = self.done)
-            self.Done_button.pack(side = LEFT,expand = 1, padx = 10, pady = 10)
+            self.Done_button.pack(side = LEFT)
 
-            canvas = FigureCanvasTkAgg(fig)
-            canvas.get_tk_widget().pack(side = BOTTOM, fill = BOTH, expand=True)
+            self.canvas = FigureCanvasTkAgg(fig, master = frame2)
+            self.canvas.get_tk_widget().pack()
 
         def good_residual(self):
             if 'GR' not in self.decision['%s'%gal_id]:
@@ -113,11 +119,10 @@ def emulate_image(filepath, gal_id):
                 self.decision['%s'%gal_id].append('OK')
                 root.destroy()
 
-
-    #need list or it will not run correctly
     root = Tk()
     app = App(root)
-    root.geometry("+{}+{}".format(20,50))
+    root.resizable(width=True, height = False)
+    root.geometry("{}x{}".format(1024,400))
     root.title("Original Image and Residual")
     root.mainloop()
 
