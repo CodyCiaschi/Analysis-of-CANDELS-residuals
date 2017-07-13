@@ -1,5 +1,5 @@
 from Tkinter import *
-from collections import defaultdict
+from optparse import OptionParser
 import numpy as np
 import os
 from time import gmtime, strftime
@@ -14,6 +14,8 @@ from matplotlib.colors import SymLogNorm
 import sys
 import remove_outliers as ro
 import tkMessageBox
+import tkFont
+
 
 def create_image(filepath):
     cube = fits.open(filepath, memmap=True)
@@ -31,11 +33,11 @@ def create_image(filepath):
     residual_clipped = ro.removeoutliers(np.array(original.flat), nsigma=7, remove='both', center='median',
                                          niter=np.Inf, retind=False, verbose=False)
 
-    fig = Figure(figsize=(30, 30), dpi=100)
+    fig = Figure(figsize=(100, 100), dpi=100)
 
     original_plot = fig.add_subplot(131)
     original_plot.imshow(original, cmap='gray', origin='lower',
-                         norm=SymLogNorm(.009, linscale=.5, vmin=np.min(original_clipped), vmax=np.max(original)*5))
+                         norm=SymLogNorm(.009, linscale=.5, vmin=np.min(original_clipped), vmax=np.max(original) * 5))
     fig.gca().set_axis_off()
 
     model_plot = fig.add_subplot(132)
@@ -63,12 +65,14 @@ def emulate_image(filepath, gal_id):
 
     app = App(root, filepath, gal_id)
     root.resizable(width=True, height=False)
-    root.geometry("{}x{}+{}+{}".format(1024, 400, x, y))
+    root.geometry("{}x{}+{}+{}".format(1200, 500, x, y))
     root.title("Original Image and Residual")
     root.mainloop()
 
-    return app.decision
-
+    if app.breakout == 0:
+        return app.decision
+    elif app.breakout == 1:
+        return True
 
 def writeCsvFile(fname, data, *args, **kwargs):
     import csv
@@ -83,182 +87,339 @@ def writeCsvFile(fname, data, *args, **kwargs):
         mycsv.writerow(row)
 
 
-class App:
+class Galaxy:
+    def __init__(self, ID):
+        self.gal_id = ID
+        self.clean_residual = 0
+        self.bright_center = 0
+        self.dark_center = 0
+        self.bright_ring = 0
+        self.dark_ring = 0
+        self.core_other = 0
+        self.artifact = 0
+        self.disk = 0
+        self.global_other = 0
+        self.spiral_arms = 0
+        self.asymmetric = 0
+        self.bar = 0
+        self.diffraction_spikes = 0
+        self.image_edge = 0
+        self.unfit_neighbor = 0
+        self.tidal_features_pres = 0
+        self.tidal_features_poss = 0
+
+    def makecsvline(self):
+        line = '%s, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i\n' % (
+            self.gal_id, self.clean_residual, self.bright_center, self.dark_center,
+            self.bright_ring, self.dark_ring, self.core_other, self.artifact,
+            self.disk, self.global_other, self.spiral_arms, self.asymmetric,
+            self.bar, self.diffraction_spikes, self.image_edge, self.unfit_neighbor, self.tidal_features_pres,
+            self.tidal_features_poss)
+        return line
+
+    def add_all(self):
+        added = self.clean_residual + self.bright_center + self.dark_center + self.bright_ring + self.dark_ring + self.core_other + self.artifact + self.disk + self.global_other + self.spiral_arms + self.asymmetric + self.bar + self.diffraction_spikes + self.image_edge + self.unfit_neighbor + self.tidal_features_pres + self.tidal_features_poss
+        return added
+
+
+class App():
     def __init__(self, master, filepath, gal_id):
 
         master_frame = Frame(master)
         master_frame.pack(side=TOP)
 
-        clean_residuals = LabelFrame(master_frame, text='Clean Residual')
+        clean_residuals = LabelFrame(master_frame, text='Clean Residual', font=("Arial", 14, "bold"), labelanchor='n')
         clean_residuals.pack(side=LEFT, padx=10)
 
-        core_residuals = LabelFrame(master_frame, text='Core Residuals')
+        core_residuals = LabelFrame(master_frame, text='Core Residuals', font=("Arial", 14, "bold"), labelanchor='n')
         core_residuals.pack(side=LEFT)
 
-        natural_residuals = LabelFrame(master_frame, text='Natural Residuals')
-        natural_residuals.pack(side = LEFT,padx = 10)
+        natural_residuals = LabelFrame(master_frame, text='Global Residuals', font=("Arial", 14, "bold"),
+                                       labelanchor='n')
+        natural_residuals.pack(side=LEFT, padx=10)
 
-        tidal_features = LabelFrame(master_frame, text='Tidal Features')
+        artifacts = LabelFrame(master_frame, text='Poor-Fit Artifacts', font=("Arial", 14, "bold"),
+                               labelanchor='n')
+        artifacts.pack(side=LEFT, padx=10)
+
+        tidal_features = LabelFrame(master_frame, text='Tidal Features', font=("Arial", 14, "bold"), labelanchor='n')
         tidal_features.pack(side=LEFT)
 
         image = Frame(master)
-        image.pack(side=BOTTOM)
+        image.pack()
+
+        save = Frame(master)
+        save.pack(side=BOTTOM)
 
         fig = create_image(filepath)
 
-        self.decision = defaultdict(list)
+        self.newgal = Galaxy(gal_id)
 
         self.gal_id = gal_id
         self.filepath = filepath
         self.root = master
+        self.decision = str()
+        self.breakout = 0
 
-        self.good_residual_button = Checkbutton(clean_residuals, text="Clean\n Residual", wraplength=90,
-                                                command=self.clean_residual)
-        self.good_residual_button.grid(row=0,column=0)
+        # Clean Residual
 
-        self.good_residual_button = Checkbutton(core_residuals, text="Over/Under", wraplength=90,
-                                                command=self.over_under)
-        self.good_residual_button.grid(row=0, column=0)
+        self.clean_residual_button = Button(clean_residuals, text="Clean\n Residual", wraplength=90,
+                                                command=self.clean_residual, font=("Arial", 14))
+        self.clean_residual_button.grid(row=0, column=1)
 
-        self.good_residual_button = Checkbutton(core_residuals, text="Under/Over", wraplength=90,
-                                                command=self.under_over)
-        self.good_residual_button.grid(row=0, column=1)
+        # Core Residuals
 
-        self.striated_button = Checkbutton(core_residuals, text='Striated', wraplength=90, command=self.striated)
-        self.striated_button.grid(row=1, column=0)
+        self.bright_center_button = Checkbutton(core_residuals, text="Bright Center", wraplength=90,
+                                                command=self.bright_center, font=("Arial", 14))
+        self.bright_center_button.grid(row=0, column=0)
 
-        self.residual_artifact_button = Checkbutton(core_residuals, text="Residual\n Artifact", wraplength=90,
-                                                        command=self.residual_artifact)
-        self.residual_artifact_button.grid(row=1, column=1)
+        self.dark_ring_button = Checkbutton(core_residuals, text="Dark Ring",
+                                            wraplength=90,
+                                            command=self.dark_ring, font=("Arial", 14))
+        self.dark_ring_button.grid(row=0, column=1)
 
-        self.unfit_disk_button = Checkbutton(natural_residuals, text="Unfit\n Disk", wraplength=90,
-                                                       command=self.unfit_disk)
-        self.unfit_disk_button.grid(row=0, column=0)
+        self.dark_center_button = Checkbutton(core_residuals, text="Dark Center",
+                                              wraplength=90,
+                                              command=self.dark_center, font=("Arial", 14))
+        self.dark_center_button.grid(row=1, column=0)
 
-        self.unfit_spiral_arms_button = Checkbutton(natural_residuals, text="Unfit\n Spiral Arms", wraplength=90,
-                                             command=self.unfit_sprial_arms)
-        self.unfit_spiral_arms_button.grid(row=0, column=1)
+        self.bright_ring_button = Checkbutton(core_residuals, text="Bright Ring",
+                                              wraplength=90,
+                                              command=self.bright_ring, font=("Arial", 14))
+        self.bright_ring_button.grid(row=1, column=1)
 
-        self.contains_substructure_button = Checkbutton(natural_residuals, text="Contains\n Substructure",
-                                                                   wraplength=90,
-                                                                   command=self.contains_substructure)
-        self.contains_substructure_button.grid(row=1, column=0)
+        self.core_other_button = Checkbutton(core_residuals, text='Other', wraplength=90, command=self.core_other,
+                                           font=("Arial", 14))
+        self.core_other_button.grid(row=0, column=3)
 
-        self.asymmetric_fit_button = Checkbutton(natural_residuals, text="Asymmetric\n Fit",
+        # Global Residuals
+
+        self.disk_button = Checkbutton(natural_residuals, text=" Disk", wraplength=90,
+                                       command=self.disk, font=("Arial", 14))
+        self.disk_button.grid(row=0, column=0)
+
+        self.spiral_arms_button = Checkbutton(natural_residuals, text="Spiral Arms", wraplength=90,
+                                              command=self.spiral_arms, font=("Arial", 14))
+        self.spiral_arms_button.grid(row=0, column=1)
+
+        self.gal_bar_button = Checkbutton(natural_residuals, text="Bar", wraplength=90,
+                                          command=self.bar, font=("Arial", 14))
+        self.gal_bar_button.grid(row=0, column=2)
+
+        self.global_other_button = Checkbutton(natural_residuals, text="Other",
                                                         wraplength=90,
-                                                        command=self.asymmetric_fit)
+                                                        command=self.global_other, font=("Arial", 14))
+        self.global_other_button.grid(row=1, column=0)
+
+        self.asymmetric_fit_button = Checkbutton(natural_residuals, text="Asymmetric",
+                                                 wraplength=90,
+                                                 command=self.asymmetric, font=("Arial", 14))
         self.asymmetric_fit_button.grid(row=1, column=1)
 
-        self.tidal_features_present_button = Checkbutton(tidal_features, text="Tidal\n Features Present", wraplength=90,
-                                                         command=self.tidal_feature_pres)
-        self.tidal_features_present_button.grid(row=0,column=0)
+        # Poor Fit Artifacts
 
-        self.tidal_features_possible_button = Checkbutton(tidal_features, text="Tidal\n Features Possible", wraplength=90,
-                                                         command=self.tidal_feature_poss)
+        self.diffraction_spikes_button = Checkbutton(artifacts, text="Diffraction Spikes",
+                                                     wraplength=90,
+                                                     command=self.diffraction_spikes, font=("Arial", 14))
+        self.diffraction_spikes_button.grid(row=0, column=0)
+
+        self.image_edge_button = Checkbutton(artifacts, text="Image Edge",
+                                             wraplength=90,
+                                             command=self.image_edge, font=("Arial", 14))
+        self.image_edge_button.grid(row=0, column=1)
+
+        self.unfit_neighbor_button = Checkbutton(artifacts, text="Unfit\n Neighbor",
+                                             wraplength=90,
+                                             command=self.unfit_neighbor, font=("Arial", 14))
+        self.unfit_neighbor_button.grid(row=0, column=2)
+
+        # Tidal Features
+
+        self.tidal_features_present_button = Checkbutton(tidal_features, text="Strong", wraplength=90,
+                                                         command=self.tidal_features_pres, font=("Arial", 14))
+        self.tidal_features_present_button.grid(row=0, column=0)
+
+        self.tidal_features_possible_button = Checkbutton(tidal_features, text="Possible",
+                                                          wraplength=90,
+                                                          command=self.tidal_features_poss, font=("Arial", 14))
         self.tidal_features_possible_button.grid(row=0, column=1)
 
-        self.Done_button = Button(master_frame, text="Done !", wraplength=55, command=self.done)
-        self.Done_button.pack(side=RIGHT, anchor=E, padx = 10)
+        # Done Button
+
+        self.Done_button = Button(master_frame, text="Done !", wraplength=55, command=self.done, font=("Arial", 14))
+        self.Done_button.pack(side=RIGHT, anchor=E, padx=10)
+
+        #Save and Exit Button
+        self.save_and_exit_button = Button(save, text="Save & Exit", wraplength=90, command = self.save_and_exit, font=("Arial", 14))
+        self.save_and_exit_button.pack(side=LEFT)
+
+        # Image Frame
 
         self.canvas = FigureCanvasTkAgg(fig, master=master)
         self.canvas.get_tk_widget().pack()
 
     def clean_residual(self):
-        if 'CR' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('CR')
-        elif 'CR' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('CR')
+        self.newgal.clean_residual = 1
+        self.decision = self.newgal.makecsvline()
+        self.root.destroy()
 
-    def residual_artifact(self):
-        if 'RA' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('RA')
-        elif 'RA' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('RA')
+    def bright_center(self):
+        if self.newgal.bright_center == 0:
+            self.newgal.bright_center = 1
+        elif self.newgal.bright_center == 1:
+            self.newgal.bright_center = 0
 
-    def over_under(self):
-        if 'OU' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('OU')
-        elif 'OU' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('OU')
+    def dark_ring(self):
+        if self.newgal.dark_ring == 0:
+            self.newgal.dark_ring = 1
+        elif self.newgal.dark_ring == 1:
+            self.newgal.dark_ring = 0
 
-    def under_over(self):
-        if 'UO' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('UO')
-        elif 'UO' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('UO')
+    def dark_center(self):
+        if self.newgal.dark_center == 0:
+            self.newgal.dark_center = 1
+        elif self.newgal.dark_center == 1:
+            self.newgal.dark_center = 0
 
-    def striated(self):
-        if 'STR' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('STR')
-        elif 'STR' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('STR')
+    def bright_ring(self):
+        if self.newgal.bright_ring == 0:
+            self.newgal.bright_ring = 1
+        elif self.newgal.bright_ring == 1:
+            self.newgal.bright_ring = 0
 
-    def unfit_disk(self):
-        if 'UD' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('UD')
-        elif 'UD' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('UD')
+    def core_other(self):
+        if self.newgal.core_other == 0:
+            self.newgal.core_other = 1
+        elif self.newgal.core_other == 1:
+            self.newgal.core_other = 0
 
-    def unfit_sprial_arms(self):
-        if 'USA' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('USA')
-        elif 'USA' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('USA')
+    def disk(self):
+        if self.newgal.disk == 0:
+            self.newgal.disk = 1
+        elif self.newgal.disk == 1:
+            self.newgal.disk = 0
 
-    def contains_substructure(self):
-        if 'RCS' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('RCS')
-        elif 'RCS' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('RCS')
+    def spiral_arms(self):
+        if self.newgal.spiral_arms == 0:
+            self.newgal.spiral_arms = 1
+        elif self.newgal.spiral_arms == 1:
+            self.newgal.spiral_arms = 0
 
-    def asymmetric_fit(self):
-        if 'AF' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('AF')
-        elif 'AF' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('AF')
+    def global_other(self):
+        if self.newgal.global_other == 0:
+            self.newgal.global_other = 1
+        elif self.newgal.global_other == 1:
+            self.newgal.global_other = 0
 
-    def tidal_feature_pres(self):
-        if 'TFP' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('TFP')
-        elif 'TFP' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('TFP')
+    def bar(self):
+        if self.newgal.bar == 0:
+            self.newgal.bar = 1
+        elif self.newgal.bar == 1:
+            self.newgal.bar = 0
 
-    def tidal_feature_poss(self):
-        if 'TPOSS' not in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].append('TPOSS')
-        elif 'TPOSS' in self.decision['%s' % self.gal_id]:
-            self.decision['%s' % self.gal_id].remove('TPOSS')
+    def asymmetric(self):
+        if self.newgal.asymmetric == 0:
+            self.newgal.asymmetric = 1
+        elif self.newgal.asymmetric == 1:
+            self.newgal.asymmetric = 0
+
+    def diffraction_spikes(self):
+        if self.newgal.diffraction_spikes == 0:
+            self.newgal.diffraction_spikes = 1
+        elif self.newgal.diffraction_spikes == 1:
+            self.newgal.diffraction_spikes = 0
+
+    def image_edge(self):
+        if self.newgal.image_edge == 0:
+            self.newgal.image_edge = 1
+        elif self.newgal.image_edge == 1:
+            self.newgal.image_edge = 0
+
+    def unfit_neighbor(self):
+        if self.newgal.unfit_neighbor == 0:
+            self.newgal.unfit_neighbor = 1
+        elif self.newgal.unfit_neighbor == 1:
+            self.newgal.unfit_neighbor = 0
+
+    def tidal_features_pres(self):
+        if self.newgal.tidal_features_pres == 0:
+            self.newgal.tidal_features_pres = 1
+        elif self.newgal.tidal_features_pres == 1:
+            self.newgal.tidal_features_pres = 0
+
+    def tidal_features_poss(self):
+        if self.newgal.tidal_features_poss == 0:
+            self.newgal.tidal_features_poss = 1
+        elif self.newgal.tidal_features_poss == 1:
+            self.newgal.tidal_features_poss = 0
 
     def done(self):
-        if self.decision['%s' % self.gal_id] != []:
+        if self.newgal.add_all() > 0:
+            self.decision = self.newgal.makecsvline()
             self.root.destroy()
-        if self.decision['%s' % self.gal_id] == []:
+
+        if self.newgal.add_all() == 0:
             tkMessageBox.showwarning('Error', 'No options were chosen. Please choose an option and try again!')
             self.root.mainloop()
 
+    def save_and_exit(self):
+        self.breakout =1
+        self.root.destroy()
+
 
 # allow the user to call any folder they want
-if len(sys.argv) == 1:
+parser = OptionParser()
+
+parser.add_option("-c", "--csv",
+                  action="store", type="string", dest="csvfile")
+
+parser.add_option("-f", "--filepath",
+                  action="store", type="string", dest='path')
+
+options,args = parser.parse_args()
+
+path = str()
+if options.path == None:
     path = os.getcwd()
-elif len(sys.argv) == 2:
-    path = sys.argv[1]
+else:
+    path = options.path
 
-sample = glob.glob(path + '/*.fits')
+directory = os.listdir(os.getcwd())
 
-new_decision_dict = dict()
+if options.csvfile in directory:
+    sample = glob.glob(path + '/*.fits')
 
-for each in sample:
-    _, id = os.path.split(each)
-    this_decision = emulate_image(each, id)
-    for galaxy, flags in this_decision.items():
-        flag_string = str()
-        for each in flags:
-            flag_string = flag_string + each + '/'
-        new_decision_dict[galaxy] = flag_string
+    IDS = []
+    for filepath in sample:
+        head,tail = os.path.split(filepath)
+        IDS.append(tail)
 
-final_information_array = [['ID', 'Visual_check_flag']]
+    oldcsv = np.genfromtxt(options.csvfile, names=True, dtype=None, delimiter=',')
+    for each in oldcsv:
+        if each['ID'] in IDS:
+            sample.remove(path + each['ID'])
 
-for key, value in new_decision_dict.items():
-    final_information_array.append([key, value])
-writeCsvFile(os.getcwd() + '/classification_results_%s.csv' % (strftime("%Y-%m-%d %H:%M:%S", gmtime())),
-             final_information_array)
+    newcsv = open(options.csvfile, 'a')
+    for each in sample:
+        _, id = os.path.split(each)
+        newcsv.write(emulate_image(each, id))
+    newcsv.close()
+
+elif options.csvfile not in directory:
+
+
+    csvheader = 'ID, Clean Residual, Bright Center, Dark Center, Bright Ring, Dark Ring, Striped, Artifact, Disk, Substructure, Spiral Arms, Asymmetric, Bar, Diffraction Spikes, Image Edge, Tidal Features Pres, Tidal Features Poss'
+    newfilename = options.csvfile
+    sample = glob.glob(path + '/*.fits')
+
+    newcsv = open(newfilename, 'w')
+    newcsv.write(csvheader)
+    newcsv.write('\n')
+    newcsv.close()
+
+    newcsv = open(newfilename, 'a')
+    for each in sample:
+        _, id = os.path.split(each)
+        newcsv.write(emulate_image(each, id))
+
+    newcsv.close()
