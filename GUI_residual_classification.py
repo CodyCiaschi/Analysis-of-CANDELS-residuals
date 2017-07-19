@@ -11,16 +11,33 @@ matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from matplotlib.colors import SymLogNorm
+from matplotlib.patches import Circle
 import sys
 import remove_outliers as ro
 import tkMessageBox
 import tkFont
+import astropy.wcs as wcs
 
 
-def create_image(filepath):
+def create_image(filepath, radius, ra, dec):
     cube = fits.open(filepath, memmap=True)
+    print filepath
+
+    image_wcs = wcs.WCS(cube[1])
 
     original = cube[1].data
+
+    deg2pix = cube[1].header['CD2_2'] * 3600.0
+    circle_radii = radius / deg2pix
+
+    xobj, yobj = image_wcs.wcs_world2pix(ra, dec, 0)
+
+    circle = Circle((xobj,yobj), circle_radii, color='cyan', fill=False,linestyle='--', alpha=0.7)
+
+    circle3 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='--', alpha=0.7)
+
+    circle5 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='--', alpha=0.7)
+
     model = cube[2].data
     residual = cube[3].data
 
@@ -39,22 +56,25 @@ def create_image(filepath):
     original_plot.imshow(original, cmap='gray', origin='lower',
                          norm=SymLogNorm(.009, linscale=.5, vmin=np.min(original_clipped), vmax=np.max(original) * 5))
     fig.gca().set_axis_off()
+    original_plot.add_artist(circle)
 
     model_plot = fig.add_subplot(132)
     model_plot.imshow(model, cmap='gray', origin='lower',
                       norm=SymLogNorm(0.009, linscale=.5, vmin=min(model_clipped), vmax=np.max(model_clipped) * 5))
     fig.gca().set_axis_off()
+    model_plot.add_artist(circle3)
 
     residual_plot = fig.add_subplot(133)
     residual_plot.imshow(residual, cmap='gray', origin='lower',
                          norm=SymLogNorm(0.009, linscale=0.5, vmin=min(residual_clipped),
                                          vmax=np.max(residual_clipped) * 5))
     fig.gca().set_axis_off()
+    residual_plot.add_artist(circle5)
 
     return fig
 
 
-def emulate_image(filepath, gal_id):
+def emulate_image(filepath, gal_id, radius, ra, dec):
     root = Tk()
 
     sw = root.winfo_screenwidth()
@@ -63,7 +83,7 @@ def emulate_image(filepath, gal_id):
     x = (sw / 4)
     y = (sh / 4)
 
-    app = App(root, filepath, gal_id)
+    app = App(root, filepath, gal_id, radius, ra, dec)
     root.resizable(width=True, height=False)
     root.geometry("{}x{}+{}+{}".format(1200, 500, x, y))
     root.title("Original Image and Residual")
@@ -123,7 +143,7 @@ class Galaxy:
 
 
 class App():
-    def __init__(self, master, filepath, gal_id):
+    def __init__(self, master, filepath, gal_id, radius, ra, dec):
 
         master_frame = Frame(master)
         master_frame.pack(side=TOP)
@@ -151,7 +171,7 @@ class App():
         save = Frame(master)
         save.pack(side=BOTTOM)
 
-        fig = create_image(filepath)
+        fig = create_image(filepath, radius, ra, dec)
 
         self.newgal = Galaxy(gal_id)
 
@@ -165,7 +185,7 @@ class App():
 
         self.clean_residual_button = Button(clean_residuals, text="Clean\n Residual", wraplength=90,
                                                 command=self.clean_residual, font=("Arial", 14))
-        self.clean_residual_button.grid(row=0, column=1)
+        self.clean_residual_button.grid(row=0, column=0)
 
         # Core Residuals
 
@@ -204,12 +224,12 @@ class App():
 
         self.gal_bar_button = Checkbutton(natural_residuals, text="Bar", wraplength=90,
                                           command=self.bar, font=("Arial", 14))
-        self.gal_bar_button.grid(row=0, column=2)
+        self.gal_bar_button.grid(row=1, column=0)
 
         self.global_other_button = Checkbutton(natural_residuals, text="Other",
                                                         wraplength=90,
                                                         command=self.global_other, font=("Arial", 14))
-        self.global_other_button.grid(row=1, column=0)
+        self.global_other_button.grid(row=0, column=2)
 
         self.asymmetric_fit_button = Checkbutton(natural_residuals, text="Asymmetric",
                                                  wraplength=90,
@@ -219,7 +239,7 @@ class App():
         # Poor Fit Artifacts
 
         self.diffraction_spikes_button = Checkbutton(artifacts, text="Diffraction Spikes",
-                                                     wraplength=90,
+                                                     wraplength=130,
                                                      command=self.diffraction_spikes, font=("Arial", 14))
         self.diffraction_spikes_button.grid(row=0, column=0)
 
@@ -228,10 +248,10 @@ class App():
                                              command=self.image_edge, font=("Arial", 14))
         self.image_edge_button.grid(row=0, column=1)
 
-        self.unfit_neighbor_button = Checkbutton(artifacts, text="Unfit\n Neighbor",
-                                             wraplength=90,
+        self.unfit_neighbor_button = Checkbutton(artifacts, text="Unfit Close Companion",
+                                             wraplength=150,
                                              command=self.unfit_neighbor, font=("Arial", 14))
-        self.unfit_neighbor_button.grid(row=0, column=2)
+        self.unfit_neighbor_button.grid(row=1, column=0, columnspan=2)
 
         # Tidal Features
 
@@ -376,6 +396,9 @@ parser.add_option("-c", "--csv",
 parser.add_option("-f", "--filepath",
                   action="store", type="string", dest='path')
 
+parser.add_option("-g", "--catalog",
+                  action="store", type="string", dest="catalog")
+
 options,args = parser.parse_args()
 
 path = str()
@@ -385,6 +408,7 @@ else:
     path = options.path
 
 directory = os.listdir(os.getcwd())
+catalog = np.genfromtxt(options.catalog,dtype=None,names=True, delimiter=',')
 
 if options.csvfile in directory:
     sample = glob.glob(path + '/*.fits')
@@ -402,13 +426,22 @@ if options.csvfile in directory:
     newcsv = open(options.csvfile, 'a')
     for each in sample:
         _, id = os.path.split(each)
-        newcsv.write(emulate_image(each, id))
+
+        middle = id.split('.')[1]
+        middle = int(middle[2:])
+        index = np.where(catalog['id_gfit_h'] == middle)
+
+        radius = catalog['re_h'][index]
+        ra = catalog['RA_gfit_h'][index]
+        dec = catalog['DEC_gfit_h'][index]
+
+        newcsv.write(emulate_image(each, id, radius, ra, dec))
     newcsv.close()
 
 elif options.csvfile not in directory:
 
 
-    csvheader = 'ID, Clean Residual, Bright Center, Dark Center, Bright Ring, Dark Ring, Striped, Artifact, Disk, Substructure, Spiral Arms, Asymmetric, Bar, Diffraction Spikes, Image Edge, Tidal Features Pres, Tidal Features Poss'
+    csvheader = 'ID, Clean Residual, Bright Center, Dark Center, Bright Ring, Dark Ring, Striped, Artifact, Disk, Substructure, Spiral Arms, Asymmetric, Bar, Diffraction Spikes, Image Edge, Unfit_Close_Companion, Tidal Features Pres, Tidal Features Poss'
     newfilename = options.csvfile
     sample = glob.glob(path + '/*.fits')
 
@@ -420,6 +453,15 @@ elif options.csvfile not in directory:
     newcsv = open(newfilename, 'a')
     for each in sample:
         _, id = os.path.split(each)
-        newcsv.write(emulate_image(each, id))
+
+        middle = id.split('.')[1]
+        middle = int(middle[2:])
+        index = np.where(catalog['id_gfit_h'] == middle)
+
+        radius = catalog['re_h'][index]
+        ra = catalog['RA_gfit_h'][index]
+        dec = catalog['DEC_gfit_h'][index]
+
+        newcsv.write(emulate_image(each, id, radius, ra, dec))
 
     newcsv.close()
