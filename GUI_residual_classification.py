@@ -23,7 +23,7 @@ def create_image(filepath, radius, ra, dec):
     cube = fits.open(filepath, memmap=True)
     print filepath
 
-    image_wcs = wcs.WCS(cube[1])
+    image_wcs = wcs.WCS(cube[1].header)
 
     original = cube[1].data
 
@@ -32,11 +32,11 @@ def create_image(filepath, radius, ra, dec):
 
     xobj, yobj = image_wcs.wcs_world2pix(ra, dec, 0)
 
-    circle = Circle((xobj,yobj), circle_radii, color='cyan', fill=False,linestyle='--', alpha=0.7)
+    circle = Circle((xobj,yobj), circle_radii, color='cyan', fill=False,linestyle='-', alpha=0.7)
 
-    circle3 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='--', alpha=0.7)
+    circle3 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='-', alpha=0.7)
 
-    circle5 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='--', alpha=0.7)
+    circle5 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='-', alpha=0.7)
 
     model = cube[2].data
     residual = cube[3].data
@@ -457,8 +457,9 @@ elif options.csvfile not in directory:
         middle = id.split('.')[1]
         middle = int(middle[2:])
         index = np.where(catalog['id_gfit_h'] == middle)
+        axis_ratio = catalog['q_h'][index]
 
-        radius = catalog['re_h'][index]
+        radius = catalog['re_h'][index] * np.sqrt(axis_ratio)
         ra = catalog['RA_gfit_h'][index]
         dec = catalog['DEC_gfit_h'][index]
 
