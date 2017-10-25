@@ -32,11 +32,11 @@ def create_image(filepath, radius, ra, dec):
 
     xobj, yobj = image_wcs.wcs_world2pix(ra, dec, 0)
 
-    circle = Circle((xobj,yobj), circle_radii, color='cyan', fill=False,linestyle='-', alpha=0.7)
+    circle = Circle((xobj,yobj), circle_radii, color='cyan', fill=False, alpha=0.7)
 
-    circle3 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='-', alpha=0.7)
+    circle3 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, alpha=0.7)
 
-    circle5 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, linestyle='-', alpha=0.7)
+    circle5 = Circle((xobj, yobj), circle_radii, color='cyan', fill=False, alpha=0.7)
 
     model = cube[2].data
     residual = cube[3].data
@@ -52,25 +52,34 @@ def create_image(filepath, radius, ra, dec):
 
     fig = Figure(figsize=(100, 100), dpi=100)
 
-    original_plot = fig.add_subplot(131)
+    original_plot = fig.add_subplot(141)
     original_plot.imshow(original, cmap='gray', origin='lower',
                          norm=SymLogNorm(.009, linscale=.5, vmin=np.min(original_clipped), vmax=np.max(original) * 5))
     fig.gca().set_axis_off()
     original_plot.add_artist(circle)
+    original_plot.set_title('Original')
 
-    model_plot = fig.add_subplot(132)
+    model_plot = fig.add_subplot(142)
     model_plot.imshow(model, cmap='gray', origin='lower',
                       norm=SymLogNorm(0.009, linscale=.5, vmin=min(model_clipped), vmax=np.max(model_clipped) * 5))
     fig.gca().set_axis_off()
     model_plot.add_artist(circle3)
+    model_plot.set_title('Model')
 
-    residual_plot = fig.add_subplot(133)
+    residual_plot = fig.add_subplot(143)
     residual_plot.imshow(residual, cmap='gray', origin='lower',
                          norm=SymLogNorm(0.009, linscale=0.5, vmin=min(residual_clipped),
                                          vmax=np.max(residual_clipped) * 5))
     fig.gca().set_axis_off()
     residual_plot.add_artist(circle5)
+    residual_plot.set_title('Residual w/ R50')
 
+    residual_plot2 = fig.add_subplot(144)
+    residual_plot2.imshow(residual, cmap='gray', origin='lower',
+                         norm=SymLogNorm(0.009, linscale=0.5, vmin=min(residual_clipped),
+                                         vmax=np.max(residual_clipped) * 5))
+    fig.gca().set_axis_off()
+    residual_plot2.set_title('Residual w/o R50')
     return fig
 
 
@@ -116,7 +125,6 @@ class Galaxy:
         self.bright_ring = 0
         self.dark_ring = 0
         self.core_other = 0
-        self.artifact = 0
         self.disk = 0
         self.global_other = 0
         self.spiral_arms = 0
@@ -129,16 +137,11 @@ class Galaxy:
         self.tidal_features_poss = 0
 
     def makecsvline(self):
-        line = '%s, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i\n' % (
-            self.gal_id, self.clean_residual, self.bright_center, self.dark_center,
-            self.bright_ring, self.dark_ring, self.core_other, self.artifact,
-            self.disk, self.global_other, self.spiral_arms, self.asymmetric,
-            self.bar, self.diffraction_spikes, self.image_edge, self.unfit_neighbor, self.tidal_features_pres,
-            self.tidal_features_poss)
+        line = '%s, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i\n' %(self.gal_id, self.clean_residual, self.bright_center,self.dark_center,self.bright_ring, self.dark_ring, self.core_other,self.disk, self.global_other, self.spiral_arms, self.asymmetric, self.bar, self.diffraction_spikes, self.image_edge,self.unfit_neighbor, self.tidal_features_pres, self.tidal_features_poss)
         return line
 
     def add_all(self):
-        added = self.clean_residual + self.bright_center + self.dark_center + self.bright_ring + self.dark_ring + self.core_other + self.artifact + self.disk + self.global_other + self.spiral_arms + self.asymmetric + self.bar + self.diffraction_spikes + self.image_edge + self.unfit_neighbor + self.tidal_features_pres + self.tidal_features_poss
+        added = self.clean_residual + self.bright_center + self.dark_center + self.bright_ring + self.dark_ring + self.core_other + self.disk + self.global_other + self.spiral_arms + self.asymmetric + self.bar + self.diffraction_spikes + self.image_edge + self.unfit_neighbor + self.tidal_features_pres + self.tidal_features_poss
         return added
 
 
@@ -430,18 +433,17 @@ if options.csvfile in directory:
         middle = id.split('.')[1]
         middle = int(middle[2:])
         index = np.where(catalog['id_gfit_h'] == middle)
+        axis_ratio = catalog['q_h'][index]
 
-        radius = catalog['re_h'][index]
-        ra = catalog['RA_gfit_h'][index]
-        dec = catalog['DEC_gfit_h'][index]
+        radius = catalog['re_h'][index] * np.sqrt(axis_ratio)
+        ra = catalog['RAdeg'][index]
+        dec = catalog['DECdeg'][index]
 
         newcsv.write(emulate_image(each, id, radius, ra, dec))
     newcsv.close()
 
 elif options.csvfile not in directory:
-
-
-    csvheader = 'ID, Clean Residual, Bright Center, Dark Center, Bright Ring, Dark Ring, Striped, Artifact, Disk, Substructure, Spiral Arms, Asymmetric, Bar, Diffraction Spikes, Image Edge, Unfit_Close_Companion, Tidal Features Pres, Tidal Features Poss'
+    csvheader = 'ID, Clean Residual, Bright Center, Dark Center, Bright Ring, Dark Ring, Core_Other, Disk, Global_Other, Spiral Arms, Asymmetric, Bar, Diffraction Spikes, Image Edge, Unfit_Close_Companion, Tidal Features Pres, Tidal Features Poss'
     newfilename = options.csvfile
     sample = glob.glob(path + '/*.fits')
 
@@ -460,8 +462,8 @@ elif options.csvfile not in directory:
         axis_ratio = catalog['q_h'][index]
 
         radius = catalog['re_h'][index] * np.sqrt(axis_ratio)
-        ra = catalog['RA_gfit_h'][index]
-        dec = catalog['DEC_gfit_h'][index]
+        ra = catalog['RAdeg'][index]
+        dec = catalog['DECdeg'][index]
 
         newcsv.write(emulate_image(each, id, radius, ra, dec))
 
